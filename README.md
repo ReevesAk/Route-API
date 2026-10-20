@@ -28,7 +28,7 @@ All geocoding and routing results are **cached in Redis** (24-hour TTL), so repe
 ### Prerequisites
 
 - Python 3.12+
-- Redis (for response caching)
+- Redis (optional — for response caching; without `REDIS_URL` the app uses an in-process cache)
 
 ```bash
 brew install redis
@@ -40,8 +40,11 @@ brew services start redis
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt        # runtime only
+pip install -r requirements-dev.txt    # runtime + test/lint tools
 ```
+
+`requirements.txt` is fully pinned, including transitive dependencies, so installs are reproducible.
 
 ### Environment variables
 
@@ -55,24 +58,21 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 ORS_API_KEY=your-openrouteservice-api-key
 
 REDIS_URL=redis://127.0.0.1:6379/1
+LOG_LEVEL=INFO
 ```
 
 Get a free ORS API key at [openrouteservice.org](https://openrouteservice.org).
 
 ### Data files
 
-Place the following files in the project root (next to `manage.py`):
+Both data files are committed in the project root (next to `manage.py`):
 
 | File | Description |
 |------|-------------|
 | `fuel_prices.csv` | OPIS fuel station data (columns: `OPIS Truckstop ID`, `Truckstop Name`, `Address`, `City`, `State`, `Rack ID`, `Retail Price`) |
 | `city_coords.json` | City → lat/lon lookup used to geocode stations that lack coordinate columns |
 
-`city_coords.json` can be generated from the GeoNames US postal dataset:
-
-```bash
-python scripts/build_city_coords.py   # or see fuel/geocoder.py for the format
-```
+`city_coords.json` is a list of `{"city", "state_id", "lat", "lng"}` objects; see `fuel/geocoder.py` for how it is indexed.
 
 ### Run
 
@@ -80,6 +80,26 @@ python scripts/build_city_coords.py   # or see fuel/geocoder.py for the format
 python manage.py migrate
 python manage.py runserver
 ```
+
+---
+
+## Running Tests
+
+```bash
+pip install -r requirements-dev.txt
+python manage.py test
+```
+
+The suite runs fully offline: **no Redis, no ORS API key and no network access are required.** The project's test runner (`fuel_route_api/test_runner.py`) forces an in-memory cache and a dummy API key even if your `.env` sets `REDIS_URL`, and every ORS call is patched with `unittest.mock`.
+
+Lint and coverage (both also enforced in CI):
+
+```bash
+ruff check .
+coverage run manage.py test && coverage report   # fails below 90%
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, `manage.py check`, a missing-migrations check, and the test suite with coverage on Python 3.12 and 3.14 for every push and pull request.
 
 ---
 
@@ -128,6 +148,10 @@ Both fields must resolve to US locations. Non-US addresses return a 400 error.
 | 400 | Missing/invalid fields, or address outside the US |
 | 502 | ORS geocoding or routing service unreachable |
 
+### `GET /api/health/`
+
+Round-trips a value through the cache. Returns `200 {"status": "ok", "cache": "ok"}` when the cache is reachable, `503 {"status": "degraded", "cache": "unreachable"}` otherwise. No authentication required.
+
 ### Interactive docs
 
 With the server running, open [http://localhost:8000/api/docs/](http://localhost:8000/api/docs/) for the Scalar UI, or [http://localhost:8000/api/schema/](http://localhost:8000/api/schema/) for the raw OpenAPI schema.
@@ -138,7 +162,7 @@ With the server running, open [http://localhost:8000/api/docs/](http://localhost
 
 ```
 routing/
-  views.py        — RouteView: parallel geocode → route → plan_stops → response
+  views.py        — RouteView: parallel geocode → route → plan_stops → response; HealthView
   ors_client.py   — ORS geocoding + directions, with Redis-backed cache
   serializers.py  — Request/response validation and shaping
 
@@ -199,6 +223,10 @@ Vehicle assumptions are set in `settings.py` and can be overridden via environme
 | `VEHICLE_MPG` | 10 | Fuel efficiency (mpg) |
 | `REFUEL_LOWER_PERCENT` | 0.70 | Start looking for fuel at 70% of range |
 | `MAX_STATION_DETOUR_MILES` | 30 | Max acceptable detour to a station |
+
+### Logging
+
+The `routing` and `fuel` loggers write one JSON object per line to stderr (`fuel_route_api/log_format.py`), including any `extra=` fields. Set the level with the `LOG_LEVEL` environment variable (default `INFO`). Upstream errors are logged with the ORS API key redacted.
 
 ---
 
