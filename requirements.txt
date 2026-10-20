@@ -2,10 +2,10 @@ asgiref==3.11.1
 attrs==26.1.0
 certifi==2026.5.20
 charset-normalizer==3.4.7
-Django==6.0.6
+Django==6.1.2
 django-redis==7.0.0
-djangorestframework==3.17.1
-drf-spectacular==0.29.0
+djangorestframework==3.18.3
+drf-spectacular==0.30.0
 idna==3.18
 inflection==0.5.1
 jsonschema==4.26.0
