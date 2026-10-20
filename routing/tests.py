@@ -337,6 +337,20 @@ class RouteViewTests(TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn('error', resp.data)
 
+    @patch('routing.views.geocode', side_effect=requests.exceptions.HTTPError(
+        '503 Server Error: Service Unavailable for url: '
+        'https://api.openrouteservice.org/geocode/search?api_key=SECRET123&text=NYC&size=1'
+    ))
+    def test_502_body_does_not_leak_api_key(self, _gc):
+        resp = self.client.post(
+            self.url,
+            {'origin': 'New York, NY', 'destination': 'Los Angeles, CA'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 502)
+        self.assertNotIn('SECRET123', resp.data['error'])
+        self.assertIn('api_key=[REDACTED]', resp.data['error'])
+
 
 # ---------------------------------------------------------------------------
 # HealthViewTests

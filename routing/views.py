@@ -1,3 +1,4 @@
+import re
 import urllib.parse
 import uuid
 import requests
@@ -18,6 +19,14 @@ def _maps_url(origin: str, dest: str, stops: list) -> str:
     parts = [origin] + [f"{s['lat']},{s['lon']}" for s in stops] + [dest]
     path  = '/'.join(urllib.parse.quote(p, safe=',') for p in parts)
     return f'https://www.google.com/maps/dir/{path}'
+
+
+_SECRET_PARAM = re.compile(r'(api_key=)[^&\s]+')
+
+
+def _redact(message: str) -> str:
+    """Strip the ORS API key from upstream error text (requests embeds the full URL)."""
+    return _SECRET_PARAM.sub(r'\1[REDACTED]', message)
 
 
 def _cache_ok() -> bool:
@@ -78,7 +87,7 @@ class RouteView(APIView):
             route_geojson = get_route(origin_coords, dest_coords)
         except requests.exceptions.RequestException as exc:
             return Response(
-                {'error': f'Routing service unavailable: {exc}'},
+                {'error': f'Routing service unavailable: {_redact(str(exc))}'},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except ValueError as exc:
