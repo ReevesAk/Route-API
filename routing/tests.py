@@ -351,6 +351,32 @@ class RouteViewTests(TestCase):
         self.assertNotIn('SECRET123', resp.data['error'])
         self.assertIn('api_key=[REDACTED]', resp.data['error'])
 
+    @patch('routing.views.geocode', side_effect=requests.exceptions.HTTPError(
+        '503 Server Error for url: https://api.openrouteservice.org/geocode/search?api_key=SECRET123'
+    ))
+    def test_upstream_error_is_logged_without_api_key(self, _gc):
+        with self.assertLogs('routing.views', level='ERROR') as logs:
+            self.client.post(
+                self.url,
+                {'origin': 'New York, NY', 'destination': 'Los Angeles, CA'},
+                format='json',
+            )
+        record = logs.records[0]
+        self.assertEqual(record.getMessage(), 'Routing service request failed')
+        self.assertEqual(record.origin, 'New York, NY')
+        self.assertNotIn('SECRET123', record.error)
+
+    @patch('routing.views.geocode', side_effect=ValueError("Could not geocode: 'Faketown, ZZ'"))
+    def test_rejected_request_is_logged_as_warning(self, _gc):
+        with self.assertLogs('routing.views', level='WARNING') as logs:
+            self.client.post(
+                self.url,
+                {'origin': 'Faketown, ZZ', 'destination': 'Los Angeles, CA'},
+                format='json',
+            )
+        self.assertEqual(logs.records[0].levelname, 'WARNING')
+        self.assertIn('Faketown', logs.records[0].error)
+
 
 # ---------------------------------------------------------------------------
 # HealthViewTests
@@ -376,8 +402,10 @@ class HealthViewTests(TestCase):
 
     @patch('routing.views.cache.set', side_effect=ConnectionError('redis down'))
     def test_returns_503_when_cache_raises(self, _set):
-        resp = self.client.get(self.url)
+        with self.assertLogs('routing.views', level='ERROR') as logs:
+            resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 503)
+        self.assertIn('redis down', logs.output[0])
 
     def test_no_auth_required(self):
         resp = self.client.get(self.url)

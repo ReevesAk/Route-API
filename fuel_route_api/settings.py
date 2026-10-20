@@ -119,6 +119,23 @@ TIME_ZONE     = 'UTC'
 USE_I18N      = True
 USE_TZ        = True
 
+# Logging — JSON lines on stderr for the app loggers
+LOG_LEVEL = config('LOG_LEVEL', default='INFO')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {'()': 'fuel_route_api.log_format.JsonFormatter'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'json'},
+    },
+    'loggers': {
+        'routing': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'fuel'   : {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+    },
+}
+
 TEST_RUNNER = 'fuel_route_api.test_runner.OfflineTestRunner'
 
 STATIC_URL           = 'static/'

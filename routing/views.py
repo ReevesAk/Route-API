@@ -1,3 +1,4 @@
+import logging
 import re
 import urllib.parse
 import uuid
@@ -13,6 +14,8 @@ from drf_spectacular.utils import extend_schema
 from .ors_client import geocode, get_route
 from .serializers import RouteRequestSerializer, RouteResponseSerializer
 from fuel.optimizer import plan_stops
+
+logger = logging.getLogger(__name__)
 
 
 def _maps_url(origin: str, dest: str, stops: list) -> str:
@@ -37,6 +40,7 @@ def _cache_ok() -> bool:
         cache.set(key, token, timeout=10)
         return cache.get(key) == token
     except Exception:
+        logger.exception('Health check cache round-trip raised')
         return False
 
 
@@ -50,6 +54,7 @@ class HealthView(APIView):
     def get(self, request):
         if _cache_ok():
             return Response({'status': 'ok', 'cache': 'ok'})
+        logger.error('Health check failed: cache unreachable')
         return Response(
             {'status': 'degraded', 'cache': 'unreachable'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -86,11 +91,19 @@ class RouteView(APIView):
             dest_coords   = f_dest.result()
             route_geojson = get_route(origin_coords, dest_coords)
         except requests.exceptions.RequestException as exc:
+            logger.error(
+                'Routing service request failed',
+                extra={'origin': origin, 'dest': dest, 'error': _redact(str(exc))},
+            )
             return Response(
                 {'error': f'Routing service unavailable: {_redact(str(exc))}'},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except ValueError as exc:
+            logger.warning(
+                'Rejected route request',
+                extra={'origin': origin, 'dest': dest, 'error': str(exc)},
+            )
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         coords = route_geojson['features'][0]['geometry']['coordinates']

@@ -1,8 +1,12 @@
+import logging
+
 import requests
 from django.core.cache import cache
 from django.conf import settings
 
 _BASE = 'https://api.openrouteservice.org'
+
+logger = logging.getLogger(__name__)
 
 
 def geocode(text: str) -> tuple[float, float]:
@@ -12,6 +16,7 @@ def geocode(text: str) -> tuple[float, float]:
     if hit is not None:
         return tuple(hit)
 
+    logger.info('ORS geocode cache miss', extra={'query': text})
     resp = requests.get(
         f'{_BASE}/geocode/search',
         params={
@@ -24,11 +29,13 @@ def geocode(text: str) -> tuple[float, float]:
     resp.raise_for_status()
     features = resp.json().get('features', [])
     if not features:
+        logger.warning('ORS geocode returned no results', extra={'query': text})
         raise ValueError(f'Could not geocode: {text!r}')
 
     props = features[0].get('properties', {})
     if props.get('country_a') != 'USA':
         country = props.get('country', 'unknown country')
+        logger.warning('Geocoded location outside US', extra={'query': text, 'country': country})
         raise ValueError(
             f'{text!r} resolved to a location in {country}. '
             'Both origin and destination must be within the United States.'
@@ -51,6 +58,7 @@ def get_route(origin: tuple[float, float], dest: tuple[float, float]) -> dict:
     if hit is not None:
         return hit
 
+    logger.info('ORS route cache miss', extra={'origin': origin, 'dest': dest})
     o_lat, o_lon = origin
     d_lat, d_lon = dest
     resp = requests.post(

@@ -75,6 +75,13 @@ class GeocodeTests(SimpleTestCase):
             geocode('Paris')
 
     @patch('routing.ors_client.requests.get')
+    def test_non_us_location_is_logged(self, mock_get):
+        mock_get.return_value = _resp({'features': [_feature(2.35, 48.86, 'FRA', 'France')]})
+        with self.assertLogs('routing.ors_client', level='WARNING') as logs, self.assertRaises(ValueError):
+            geocode('Paris')
+        self.assertEqual(logs.records[0].country, 'France')
+
+    @patch('routing.ors_client.requests.get')
     def test_failed_lookup_is_not_cached(self, mock_get):
         mock_get.return_value = _resp({'features': []})
         with self.assertRaises(ValueError):
