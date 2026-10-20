@@ -1,10 +1,12 @@
 import urllib.parse
+import uuid
 import requests
 from concurrent.futures import ThreadPoolExecutor
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from django.core.cache import cache
 from drf_spectacular.utils import extend_schema
 
 from .ors_client import geocode, get_route
@@ -16,6 +18,33 @@ def _maps_url(origin: str, dest: str, stops: list) -> str:
     parts = [origin] + [f"{s['lat']},{s['lon']}" for s in stops] + [dest]
     path  = '/'.join(urllib.parse.quote(p, safe=',') for p in parts)
     return f'https://www.google.com/maps/dir/{path}'
+
+
+def _cache_ok() -> bool:
+    """Round-trip a value through the cache; False if the backend is unreachable."""
+    key   = 'health:ping'
+    token = uuid.uuid4().hex
+    try:
+        cache.set(key, token, timeout=10)
+        return cache.get(key) == token
+    except Exception:
+        return False
+
+
+class HealthView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary='Service health check',
+        description='Returns 200 when the cache backend is reachable, 503 otherwise.',
+    )
+    def get(self, request):
+        if _cache_ok():
+            return Response({'status': 'ok', 'cache': 'ok'})
+        return Response(
+            {'status': 'degraded', 'cache': 'unreachable'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 class RouteView(APIView):

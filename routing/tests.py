@@ -336,3 +336,35 @@ class RouteViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
         self.assertIn('error', resp.data)
+
+
+# ---------------------------------------------------------------------------
+# HealthViewTests
+# ---------------------------------------------------------------------------
+
+class HealthViewTests(TestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url    = '/api/health/'
+
+    def test_returns_200_when_cache_reachable(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, {'status': 'ok', 'cache': 'ok'})
+
+    @patch('routing.views.cache.get', return_value=None)
+    def test_returns_503_when_cache_read_misses(self, _get):
+        # django-redis with IGNORE_EXCEPTIONS turns an outage into a silent miss
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 503)
+        self.assertEqual(resp.data['cache'], 'unreachable')
+
+    @patch('routing.views.cache.set', side_effect=ConnectionError('redis down'))
+    def test_returns_503_when_cache_raises(self, _set):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 503)
+
+    def test_no_auth_required(self):
+        resp = self.client.get(self.url)
+        self.assertNotIn(resp.status_code, (401, 403))
