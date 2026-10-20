@@ -1,17 +1,15 @@
 import csv
-import json
 import io
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import requests
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from fuel.geocoder import city_to_coords, _load_index
+from fuel.geocoder import _load_index, city_to_coords
 from fuel.optimizer import plan_stops
-
 
 # ---------------------------------------------------------------------------
 # Helpers

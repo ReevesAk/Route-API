@@ -2,18 +2,20 @@ import logging
 import re
 import urllib.parse
 import uuid
-import requests
 from concurrent.futures import ThreadPoolExecutor
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+
+import requests
 from django.core.cache import cache
 from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from fuel.optimizer import plan_stops
 
 from .ors_client import geocode, get_route
 from .serializers import RouteRequestSerializer, RouteResponseSerializer
-from fuel.optimizer import plan_stops
 
 logger = logging.getLogger(__name__)
 

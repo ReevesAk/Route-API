@@ -6,3 +6,6 @@ __pycache__/
 db.sqlite3
 *.log
 .DS_Store
+.coverage
+htmlcov/
+.ruff_cache/

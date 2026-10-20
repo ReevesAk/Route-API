@@ -1,7 +1,9 @@
 import csv
 from functools import lru_cache
 from pathlib import Path
+
 from django.conf import settings
+
 from .geocoder import city_to_coords
 
 
