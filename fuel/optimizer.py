@@ -16,6 +16,12 @@ def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
+def _lon_pad(miles: float, max_abs_lat: float) -> float:
+    """Degrees of longitude spanning `miles` at the latitude where a degree is narrowest."""
+    lat = min(max_abs_lat, 89.0)
+    return miles / (69.17 * math.cos(math.radians(lat)))
+
+
 def _build_cumulative(coords: list) -> list[float]:
     cum = [0.0]
     for i in range(1, len(coords)):
@@ -48,7 +54,6 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
     stations_sorted = sorted(stations, key=lambda s: s['lat'])
     station_lats    = [s['lat'] for s in stations_sorted]
     lat_pad = detour_mi / 69.0   # degrees lat ≈ miles / 69
-    lon_pad = detour_mi / 54.6   # degrees lon at ~40°N (conservative)
 
     cumulative  = _build_cumulative(route_coords)
     total_miles = cumulative[-1]
@@ -80,6 +85,7 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
         # Bounding box of the refuel zone, expanded by detour radius
         lat_lo = min(la for _, la, _ in zone_pts) - lat_pad
         lat_hi = max(la for _, la, _ in zone_pts) + lat_pad
+        lon_pad = _lon_pad(detour_mi, max(abs(lat_lo), abs(lat_hi)))
         lon_lo = min(lo for _, _, lo in zone_pts) - lon_pad
         lon_hi = max(lo for _, _, lo in zone_pts) + lon_pad
         lo_i = bisect.bisect_left(station_lats, lat_lo)

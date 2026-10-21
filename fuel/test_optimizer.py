@@ -64,3 +64,27 @@ class OptimizerTests(TestCase):
     def test_total_distance_positive(self):
         _, total = plan_stops(STRAIGHT_COORDS, stations=[])
         self.assertGreater(total, 0)
+
+
+class DetourLatitudeTests(TestCase):
+    """
+    A degree of longitude shrinks with latitude (~44 mi at 50°N vs ~53 mi at
+    40°N), so the east-west search box must widen further north.
+    """
+
+    @override_settings(VEHICLE_RANGE_MILES=500, VEHICLE_MPG=10,
+                       REFUEL_LOWER_PERCENT=0.70, MAX_STATION_DETOUR_MILES=30)
+    def test_finds_station_due_east_within_detour_at_northern_latitude(self):
+        route = [[0.0, float(lat)] for lat in range(44, 56)]   # 44 → 55 °N
+        station = _make_station(lat=50.0, lon=0.63, price=3.25)  # ~28 mi east of route
+        stops, _ = plan_stops(route, stations=[station])
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(stops[0]['price_per_gallon'], 3.25)
+
+    @override_settings(VEHICLE_RANGE_MILES=500, VEHICLE_MPG=10,
+                       REFUEL_LOWER_PERCENT=0.70, MAX_STATION_DETOUR_MILES=30)
+    def test_ignores_station_beyond_detour_at_northern_latitude(self):
+        route = [[0.0, float(lat)] for lat in range(44, 56)]
+        station = _make_station(lat=50.0, lon=0.75, price=3.25)  # ~33 mi east
+        stops, _ = plan_stops(route, stations=[station])
+        self.assertEqual(stops, [])
