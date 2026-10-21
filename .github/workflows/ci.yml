@@ -20,6 +20,18 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit==2.10.1
+      # Fails the build on any known vulnerability in the pinned runtime or dev dependencies.
+      - run: pip-audit --strict --require-hashes --disable-pip -r requirements.txt
+      - run: pip-audit --strict --require-hashes --disable-pip -r requirements-dev.txt
+
   test:
     runs-on: ubuntu-latest
     strategy:
