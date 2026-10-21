@@ -19,6 +19,12 @@ def _make_station(lat, lon, price, sid='1', name='Test Stop', city='Testville', 
 
 class OptimizerTests(TestCase):
 
+    def test_empty_route_returns_no_stops(self):
+        self.assertEqual(plan_stops([], stations=[_make_station(0.0, 0.0, 3.0)]), ([], 0.0))
+
+    def test_single_point_route_returns_no_stops(self):
+        self.assertEqual(plan_stops([[0.0, 0.0]], stations=[]), ([], 0.0))
+
     def test_short_route_no_stops_needed(self):
         # 3-point route totalling ~276 miles (well within 500-mile range)
         coords = [[0.0, 0.0], [0.0, 2.0], [0.0, 4.0]]

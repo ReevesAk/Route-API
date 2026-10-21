@@ -38,6 +38,9 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
     lower_pct  = getattr(settings, 'REFUEL_LOWER_PERCENT', 0.70)
     detour_mi  = getattr(settings, 'MAX_STATION_DETOUR_MILES', 30)
 
+    if not route_coords:
+        return [], 0.0
+
     if stations is None:
         stations = load_stations()
 
