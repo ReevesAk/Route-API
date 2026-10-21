@@ -44,3 +44,8 @@ class RouteResponseSerializer(serializers.Serializer):
     total_distance_miles = serializers.FloatField()
     route_geojson        = serializers.DictField()
     google_maps_url      = serializers.CharField()
+
+
+class HealthResponseSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=['ok', 'degraded'])
+    cache  = serializers.ChoiceField(choices=['ok', 'unreachable'])

@@ -1,7 +1,9 @@
+import io
 import json
 import logging
 import sys
 
+from django.core.management import call_command
 from django.test import SimpleTestCase
 
 from fuel_route_api.log_format import JsonFormatter
@@ -42,3 +44,19 @@ class JsonFormatterTests(SimpleTestCase):
 
     def test_single_line(self):
         self.assertNotIn('\n', JsonFormatter().format(_record(msg='a\nb')))
+
+
+class OpenApiSchemaTests(SimpleTestCase):
+
+    def test_schema_generates_without_warnings(self):
+        out = io.StringIO()
+        call_command('spectacular', '--fail-on-warn', '--format', 'openapi-json', stdout=out, stderr=io.StringIO())
+        schema = json.loads(out.getvalue())
+        self.assertIn('/api/route/', schema['paths'])
+        self.assertIn('/api/health/', schema['paths'])
+
+    def test_health_responses_documented(self):
+        out = io.StringIO()
+        call_command('spectacular', '--format', 'openapi-json', stdout=out, stderr=io.StringIO())
+        responses = json.loads(out.getvalue())['paths']['/api/health/']['get']['responses']
+        self.assertEqual(set(responses), {'200', '503'})

@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 from fuel.optimizer import plan_stops
 
 from .ors_client import geocode, get_route
-from .serializers import RouteRequestSerializer, RouteResponseSerializer
+from .serializers import HealthResponseSerializer, RouteRequestSerializer, RouteResponseSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ class HealthView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
+        responses={200: HealthResponseSerializer, 503: HealthResponseSerializer},
         summary='Service health check',
         description='Returns 200 when the cache backend is reachable, 503 otherwise.',
     )
