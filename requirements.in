@@ -1,8 +1,8 @@
 # Direct runtime dependencies. Edit this file, then regenerate the lockfile
 # with Python 3.12 (the oldest supported version, so version-gated deps are kept):
 #   pip-compile --generate-hashes --strip-extras requirements.in
-Django>=6.0,<6.1
-djangorestframework>=3.17,<4
+Django>=6.0.8,<6.1
+djangorestframework>=3.17.2,<4
 drf-spectacular>=0.29,<1
 django-redis>=7.0,<8
 python-decouple>=3.8,<4
