@@ -1,0 +1,6 @@
+# Test and lint tools on top of the runtime lockfile. Regenerate with Python 3.12:
+#   pip-compile --generate-hashes --strip-extras requirements-dev.in
+-c requirements.txt
+-r requirements.in
+coverage>=7.16,<8
+ruff>=0.17,<0.18
