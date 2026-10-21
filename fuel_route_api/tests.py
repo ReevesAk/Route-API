@@ -1,7 +1,10 @@
+import importlib
 import io
 import json
 import logging
+import os
 import sys
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import SimpleTestCase
@@ -60,3 +63,37 @@ class OpenApiSchemaTests(SimpleTestCase):
         call_command('spectacular', '--format', 'openapi-json', stdout=out, stderr=io.StringIO())
         responses = json.loads(out.getvalue())['paths']['/api/health/']['get']['responses']
         self.assertEqual(set(responses), {'200', '503'})
+
+
+class VehicleSettingsTests(SimpleTestCase):
+    """Vehicle assumptions can be overridden from the environment."""
+
+    def _load_settings(self, env):
+        import fuel_route_api.settings as module
+        with patch.dict(os.environ, env):
+            reloaded = importlib.reload(module)
+        self.addCleanup(importlib.reload, module)
+        return reloaded
+
+    def test_defaults(self):
+        keys = ('VEHICLE_RANGE_MILES', 'VEHICLE_MPG', 'REFUEL_LOWER_PERCENT', 'MAX_STATION_DETOUR_MILES')
+        with patch.dict(os.environ, {}):
+            for key in keys:
+                os.environ.pop(key, None)
+            s = self._load_settings({})
+        self.assertEqual(s.VEHICLE_RANGE_MILES, 500)
+        self.assertEqual(s.VEHICLE_MPG, 10)
+        self.assertEqual(s.REFUEL_LOWER_PERCENT, 0.70)
+        self.assertEqual(s.MAX_STATION_DETOUR_MILES, 30)
+
+    def test_env_overrides_are_cast(self):
+        s = self._load_settings({
+            'VEHICLE_RANGE_MILES': '650',
+            'VEHICLE_MPG': '7.5',
+            'REFUEL_LOWER_PERCENT': '0.6',
+            'MAX_STATION_DETOUR_MILES': '15',
+        })
+        self.assertEqual(s.VEHICLE_RANGE_MILES, 650)
+        self.assertEqual(s.VEHICLE_MPG, 7.5)
+        self.assertEqual(s.REFUEL_LOWER_PERCENT, 0.6)
+        self.assertEqual(s.MAX_STATION_DETOUR_MILES, 15)

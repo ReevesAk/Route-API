@@ -109,11 +109,11 @@ else:
 # OpenRouteService
 ORS_API_KEY = config('ORS_API_KEY', default='')
 
-# Vehicle assumptions
-VEHICLE_RANGE_MILES       = 500
-VEHICLE_MPG               = 10
-REFUEL_LOWER_PERCENT      = 0.70   # refuel when tank hits 70 % empty
-MAX_STATION_DETOUR_MILES  = 30
+# Vehicle assumptions (overridable via environment)
+VEHICLE_RANGE_MILES       = config('VEHICLE_RANGE_MILES', default=500, cast=int)
+VEHICLE_MPG               = config('VEHICLE_MPG', default=10, cast=float)
+REFUEL_LOWER_PERCENT      = config('REFUEL_LOWER_PERCENT', default=0.70, cast=float)  # start looking at 70 % of range
+MAX_STATION_DETOUR_MILES  = config('MAX_STATION_DETOUR_MILES', default=30, cast=int)
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE     = 'UTC'
