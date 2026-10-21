@@ -118,6 +118,8 @@ CI (`.github/workflows/ci.yml`) runs lint, `manage.py check`, a missing-migratio
 
 Both fields must resolve to US locations. Non-US addresses return a 400 error.
 
+Each field must be 2–200 characters of letters, digits, spaces and common address punctuation (`. , ' # & ( ) / -`), contain at least one letter or digit, and origin and destination must differ.
+
 **Response (200)**
 
 ```json
@@ -145,7 +147,7 @@ Both fields must resolve to US locations. Non-US addresses return a 400 error.
 
 | Status | Cause |
 |--------|-------|
-| 400 | Missing/invalid fields, or address outside the US |
+| 400 | Missing/invalid fields (length, characters, identical endpoints), or address outside the US |
 | 502 | ORS geocoding or routing service unreachable |
 
 ### `GET /api/health/`
