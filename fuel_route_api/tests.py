@@ -3,9 +3,12 @@ import io
 import json
 import logging
 import os
+import re
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.management import call_command
 from django.test import SimpleTestCase
 
@@ -97,3 +100,26 @@ class VehicleSettingsTests(SimpleTestCase):
         self.assertEqual(s.VEHICLE_MPG, 7.5)
         self.assertEqual(s.REFUEL_LOWER_PERCENT, 0.6)
         self.assertEqual(s.MAX_STATION_DETOUR_MILES, 15)
+
+
+class EnvExampleTests(SimpleTestCase):
+    """.env.example must list exactly the variables settings.py reads."""
+
+    def _example_keys(self):
+        text = (Path(settings.BASE_DIR) / '.env.example').read_text()
+        return {
+            line.split('=', 1)[0].strip()
+            for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith('#')
+        }
+
+    def _settings_keys(self):
+        source = (Path(settings.BASE_DIR) / 'fuel_route_api' / 'settings.py').read_text()
+        return set(re.findall(r"config\(\s*'([A-Z_]+)'", source))
+
+    def test_example_matches_settings(self):
+        self.assertEqual(self._example_keys(), self._settings_keys())
+
+    def test_example_does_not_contain_real_ors_key(self):
+        text = (Path(settings.BASE_DIR) / '.env.example').read_text()
+        self.assertRegex(text, r'(?m)^ORS_API_KEY=$')

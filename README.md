@@ -56,18 +56,13 @@ pip-compile --generate-hashes --strip-extras requirements-dev.in
 
 ### Environment variables
 
-Copy the example below into a `.env` file at the project root:
+Copy the template and fill in your ORS key:
 
+```bash
+cp .env.example .env
 ```
-SECRET_KEY=your-django-secret-key
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
 
-ORS_API_KEY=your-openrouteservice-api-key
-
-REDIS_URL=redis://127.0.0.1:6379/1
-LOG_LEVEL=INFO
-```
+`.env.example` lists every variable the app reads, with its default. Only `ORS_API_KEY` is needed to plan real routes; leave `REDIS_URL` empty to run without Redis.
 
 Get a free ORS API key at [openrouteservice.org](https://openrouteservice.org).
 
