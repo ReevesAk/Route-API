@@ -25,6 +25,17 @@ All geocoding and routing results are **cached in Redis** (24-hour TTL), so repe
 
 ## Setup
 
+### Quick start with Docker
+
+```bash
+cp .env.example .env        # add your ORS_API_KEY
+docker compose up --build
+```
+
+This starts the API under gunicorn on [http://localhost:8000](http://localhost:8000) with a Redis cache. `curl localhost:8000/api/health/` should return `{"status": "ok", "cache": "ok"}`. The image installs dependencies from the hash-pinned `requirements.txt` and runs as a non-root user.
+
+To run without Docker, follow the steps below.
+
 ### Prerequisites
 
 - Python 3.12+
@@ -259,4 +270,5 @@ The `routing` and `fuel` loggers write one JSON object per line to stderr (`fuel
 | `drf-spectacular` | OpenAPI schema generation |
 | `django-redis` | Redis cache backend |
 | `requests` | ORS HTTP calls |
+| `gunicorn` | Production WSGI server (Docker image) |
 | `python-decouple` | `.env` config loading |

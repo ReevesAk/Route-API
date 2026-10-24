@@ -123,3 +123,11 @@ class EnvExampleTests(SimpleTestCase):
     def test_example_does_not_contain_real_ors_key(self):
         text = (Path(settings.BASE_DIR) / '.env.example').read_text()
         self.assertRegex(text, r'(?m)^ORS_API_KEY=$')
+
+
+class WsgiEntryPointTests(SimpleTestCase):
+    """The module gunicorn loads in the Docker image must import cleanly."""
+
+    def test_wsgi_application_is_callable(self):
+        from fuel_route_api.wsgi import application
+        self.assertTrue(callable(application))

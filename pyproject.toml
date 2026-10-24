@@ -16,7 +16,7 @@ known-first-party = ["fuel", "routing", "fuel_route_api"]
 
 [tool.coverage.run]
 source = ["fuel", "routing", "fuel_route_api"]
-omit = ["*/migrations/*", "*/tests.py", "*/test_*.py", "fuel_route_api/asgi.py", "fuel_route_api/wsgi.py"]
+omit = ["*/migrations/*", "*/tests.py", "*/test_*.py", "fuel_route_api/asgi.py"]
 
 [tool.coverage.report]
 fail_under = 90

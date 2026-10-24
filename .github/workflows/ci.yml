@@ -50,3 +50,26 @@ jobs:
       - run: python manage.py makemigrations --check --dry-run
       - run: coverage run manage.py test
       - run: coverage report
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start web + Redis
+        run: docker compose up --build --detach --wait --wait-timeout 120
+      - name: Health check reports Redis reachable
+        run: |
+          body=$(curl --fail --silent --show-error http://localhost:8000/api/health/)
+          echo "$body"
+          test "$body" = '{"status":"ok","cache":"ok"}'
+      - name: Route endpoint validates input
+        run: |
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' -d '{"origin":"Denver, CO"}' \
+            http://localhost:8000/api/route/)
+          test "$code" = 400
+      - name: Logs
+        if: always()
+        run: docker compose logs
+      - run: docker compose down
+        if: always()
