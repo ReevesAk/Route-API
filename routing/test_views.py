@@ -34,6 +34,8 @@ STOP = {
 }
 
 
+GAP = {'from_mile': 0.0, 'to_mile': 500.0, 'message': 'No fuel station within 30 miles ...'}
+
 class RouteViewTests(TestCase):
 
     def setUp(self):
@@ -58,7 +60,7 @@ class RouteViewTests(TestCase):
 
     # --- success path ---
 
-    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_success_returns_200(self, _gc, _gr, _ps):
@@ -69,7 +71,7 @@ class RouteViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
 
-    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_response_has_all_keys(self, _gc, _gr, _ps):
@@ -79,10 +81,10 @@ class RouteViewTests(TestCase):
             format='json',
         )
         for key in ('fuel_stops', 'total_fuel_cost', 'total_distance_miles',
-                    'route_geojson', 'google_maps_url'):
+                    'route_geojson', 'google_maps_url', 'warnings'):
             self.assertIn(key, resp.data)
 
-    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_fuel_stop_fields(self, _gc, _gr, _ps):
@@ -96,7 +98,7 @@ class RouteViewTests(TestCase):
                       'gallons', 'cost', 'miles_from_last_stop'):
             self.assertIn(field, stop)
 
-    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_total_cost_equals_sum_of_stops(self, _gc, _gr, _ps):
@@ -108,7 +110,7 @@ class RouteViewTests(TestCase):
         expected = round(sum(s['cost'] for s in [STOP]), 2)
         self.assertAlmostEqual(float(resp.data['total_fuel_cost']), expected, places=2)
 
-    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_google_maps_url_format(self, _gc, _gr, _ps):
@@ -119,7 +121,7 @@ class RouteViewTests(TestCase):
         )
         self.assertTrue(resp.data['google_maps_url'].startswith('https://www.google.com/maps/dir/'))
 
-    @patch('routing.views.plan_stops', return_value=([], 2800.0))
+    @patch('routing.views.plan_stops', return_value=([], 2800.0, []))
     @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
     @patch('routing.views.geocode',    return_value=(40.71, -74.01))
     def test_google_maps_url_contains_endpoints(self, _gc, _gr, _ps):
@@ -131,6 +133,32 @@ class RouteViewTests(TestCase):
         url = resp.data['google_maps_url']
         self.assertIn('New%20York', url)
         self.assertIn('Los%20Angeles', url)
+
+    @patch('routing.views.plan_stops', return_value=([STOP], 2800.0, []))
+    @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
+    @patch('routing.views.geocode',    return_value=(40.71, -74.01))
+    def test_feasible_route_has_empty_warnings(self, _gc, _gr, _ps):
+        resp = self.client.post(
+            self.url,
+            {'origin': 'New York, NY', 'destination': 'Los Angeles, CA'},
+            format='json',
+        )
+        self.assertEqual(resp.data['warnings'], [])
+
+    @patch('routing.views.plan_stops', return_value=([], 2800.0, [GAP]))
+    @patch('routing.views.get_route',  return_value=MOCK_GEOJSON)
+    @patch('routing.views.geocode',    return_value=(40.71, -74.01))
+    def test_range_gap_returned_and_logged(self, _gc, _gr, _ps):
+        with self.assertLogs('routing.views', level='WARNING') as logs:
+            resp = self.client.post(
+                self.url,
+                {'origin': 'New York, NY', 'destination': 'Los Angeles, CA'},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['warnings'][0]['to_mile'], 500.0)
+        self.assertIn('No fuel station', resp.data['warnings'][0]['message'])
+        self.assertEqual(logs.records[0].gaps, 1)
 
     # --- error handling ---
 

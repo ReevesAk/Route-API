@@ -142,8 +142,21 @@ Each field must be 2–200 characters of letters, digits, spaces and common addr
   "total_fuel_cost": 762.75,
   "total_distance_miles": 2797.3,
   "route_geojson": { "type": "FeatureCollection", "..." },
-  "google_maps_url": "https://www.google.com/maps/dir/..."
+  "google_maps_url": "https://www.google.com/maps/dir/...",
+  "warnings": []
 }
+```
+
+If part of the route has no station within the detour radius anywhere in a full tank's range, the plan can't be completed and `warnings` describes each gap:
+
+```json
+"warnings": [
+  {
+    "from_mile": 0.0,
+    "to_mile": 500.0,
+    "message": "No fuel station within 30 miles of the route between mile 0 and mile 500; the vehicle cannot cover this stretch on one 500-mile tank."
+  }
+]
 ```
 
 **Error responses**
@@ -185,6 +198,8 @@ The optimizer walks the route in 500-mile windows (truck tank range). In each wi
 2. Computes a bounding box around those waypoints, expanded by the 30-mile detour radius
 3. Uses a **binary search on a lat-sorted station list** to extract only the ~50–200 candidate stations in that box, instead of scanning all 6,600+
 4. Runs haversine checks only on the candidates to find the cheapest reachable station
+
+If the refuel zone has no station, it falls back to the cheapest station anywhere between the last stop and the end of the tank's range. If even that window is empty, it records a `warnings` entry for the gap and resumes planning from the end of the range.
 
 This reduces the inner loop from O(waypoints × 6,600) to O(waypoints × ~100), making `plan_stops` complete in ~15ms.
 

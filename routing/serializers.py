@@ -38,12 +38,19 @@ class FuelStopSerializer(serializers.Serializer):
     miles_from_last_stop = serializers.FloatField()
 
 
+class RangeWarningSerializer(serializers.Serializer):
+    from_mile = serializers.FloatField()
+    to_mile   = serializers.FloatField()
+    message   = serializers.CharField()
+
+
 class RouteResponseSerializer(serializers.Serializer):
     fuel_stops           = FuelStopSerializer(many=True)
     total_fuel_cost      = serializers.FloatField()
     total_distance_miles = serializers.FloatField()
     route_geojson        = serializers.DictField()
     google_maps_url      = serializers.CharField()
+    warnings             = RangeWarningSerializer(many=True)
 
 
 class HealthResponseSerializer(serializers.Serializer):

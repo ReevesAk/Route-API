@@ -1,9 +1,16 @@
 import bisect
 import math
+from typing import NamedTuple
 
 from django.conf import settings
 
 from .loader import load_stations
+
+
+class FuelPlan(NamedTuple):
+    stops: list[dict]
+    total_miles: float
+    warnings: list[dict]   # gaps where no station was reachable on one tank
 
 
 def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -68,13 +75,14 @@ def _build_cumulative(coords: list) -> list[float]:
     return cum
 
 
-def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[dict], float]:
+def plan_stops(route_coords: list, stations: list | None = None) -> FuelPlan:
     """
     Walk route_coords ([lon, lat] pairs from ORS) in 500-mile windows.
     In each 70–100% refuel zone, pick the cheapest station within 30 miles of
     any sampled waypoint.
 
-    Returns (stops, total_distance_miles).
+    Returns FuelPlan(stops, total_miles, warnings). A warning is added for
+    each stretch where no station is reachable within the vehicle's range.
     """
     max_range  = getattr(settings, 'VEHICLE_RANGE_MILES', 500)
     mpg        = getattr(settings, 'VEHICLE_MPG', 10)
@@ -82,7 +90,7 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
     detour_mi  = getattr(settings, 'MAX_STATION_DETOUR_MILES', 30)
 
     if not route_coords:
-        return [], 0.0
+        return FuelPlan([], 0.0, [])
 
     if stations is None:
         stations = load_stations()
@@ -104,6 +112,7 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
             last_sampled = cum
 
     stops: list[dict] = []
+    warnings: list[dict] = []
     last_stop_mile = 0.0
 
     for _ in range(50):  # safety cap
@@ -122,8 +131,18 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
             best = _cheapest_near(ahead_pts, stations_sorted, station_lats, detour_mi)
 
         if best is None:
-            # No station reachable at all — advance window to avoid an infinite loop
-            last_stop_mile = refuel_min
+            # No station reachable on this tank: flag the gap and resume
+            # planning from where the tank runs out.
+            warnings.append({
+                'from_mile': round(last_stop_mile, 1),
+                'to_mile'  : round(refuel_max, 1),
+                'message'  : (
+                    f'No fuel station within {detour_mi} miles of the route between '
+                    f'mile {last_stop_mile:.0f} and mile {refuel_max:.0f}; the vehicle '
+                    f'cannot cover this stretch on one {max_range}-mile tank.'
+                ),
+            })
+            last_stop_mile = refuel_max
             continue
 
         best_station, best_mile = best
@@ -146,4 +165,4 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
         })
         last_stop_mile = best_mile
 
-    return stops, round(total_miles, 1)
+    return FuelPlan(stops, round(total_miles, 1), warnings)

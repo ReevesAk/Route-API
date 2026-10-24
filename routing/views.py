@@ -110,7 +110,12 @@ class RouteView(APIView):
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         coords = route_geojson['features'][0]['geometry']['coordinates']
-        stops, total_miles = plan_stops(coords)
+        stops, total_miles, warnings = plan_stops(coords)
+        if warnings:
+            logger.warning(
+                'Route has stretches with no reachable fuel station',
+                extra={'origin': origin, 'dest': dest, 'gaps': len(warnings)},
+            )
 
         data = {
             'fuel_stops'          : stops,
@@ -118,5 +123,6 @@ class RouteView(APIView):
             'total_distance_miles': total_miles,
             'route_geojson'       : route_geojson,
             'google_maps_url'     : _maps_url(origin, dest, stops),
+            'warnings'            : warnings,
         }
         return Response(RouteResponseSerializer(data).data)
