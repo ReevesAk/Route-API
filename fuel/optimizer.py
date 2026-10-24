@@ -22,6 +22,43 @@ def _lon_pad(miles: float, max_abs_lat: float) -> float:
     return miles / (69.17 * math.cos(math.radians(lat)))
 
 
+def _cheapest_near(
+    points: list[tuple[float, float, float]],
+    stations_sorted: list[dict],
+    station_lats: list[float],
+    detour_mi: float,
+) -> tuple[dict, float] | None:
+    """
+    Cheapest station within detour_mi of any (cum_miles, lat, lon) point.
+    Returns (station, cum_miles of the nearest qualifying point) or None.
+    """
+    if not points:
+        return None
+
+    # Bounding box of the points, expanded by the detour radius, then a
+    # binary search on the lat-sorted stations to get the candidates.
+    lat_pad = detour_mi / 69.0   # degrees lat ≈ miles / 69
+    lat_lo = min(la for _, la, _ in points) - lat_pad
+    lat_hi = max(la for _, la, _ in points) + lat_pad
+    lon_pad = _lon_pad(detour_mi, max(abs(lat_lo), abs(lat_hi)))
+    lon_lo = min(lo for _, _, lo in points) - lon_pad
+    lon_hi = max(lo for _, _, lo in points) + lon_pad
+    lo_i = bisect.bisect_left(station_lats, lat_lo)
+    hi_i = bisect.bisect_right(station_lats, lat_hi)
+    candidates = [s for s in stations_sorted[lo_i:hi_i] if lon_lo <= s['lon'] <= lon_hi]
+
+    best: tuple[dict, float] | None = None
+    best_price = float('inf')
+    for (cum, wp_lat, wp_lon) in points:
+        for st in candidates:
+            if st['price'] >= best_price:
+                continue
+            if _haversine(wp_lat, wp_lon, st['lat'], st['lon']) <= detour_mi:
+                best = (st, cum)
+                best_price = st['price']
+    return best
+
+
 def _build_cumulative(coords: list) -> list[float]:
     cum = [0.0]
     for i in range(1, len(coords)):
@@ -53,7 +90,6 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
     # Lat-sorted index for O(log n) spatial pre-filtering per refuel zone.
     stations_sorted = sorted(stations, key=lambda s: s['lat'])
     station_lats    = [s['lat'] for s in stations_sorted]
-    lat_pad = detour_mi / 69.0   # degrees lat ≈ miles / 69
 
     cumulative  = _build_cumulative(route_coords)
     total_miles = cumulative[-1]
@@ -77,39 +113,21 @@ def plan_stops(route_coords: list, stations: list | None = None) -> tuple[list[d
         refuel_min = last_stop_mile + max_range * lower_pct
         refuel_max = last_stop_mile + max_range
 
-        zone_pts = [(c, la, lo) for c, la, lo in sampled if refuel_min <= c <= refuel_max]
-        if not zone_pts:
+        # Prefer the cheapest station in the 70-100% refuel zone. If there is
+        # none, take the cheapest one anywhere ahead that is still within range.
+        zone_pts = [p for p in sampled if refuel_min <= p[0] <= refuel_max]
+        best = _cheapest_near(zone_pts, stations_sorted, station_lats, detour_mi)
+        if best is None:
+            ahead_pts = [p for p in sampled if last_stop_mile < p[0] <= refuel_max]
+            best = _cheapest_near(ahead_pts, stations_sorted, station_lats, detour_mi)
+
+        if best is None:
+            # No station reachable at all — advance window to avoid an infinite loop
             last_stop_mile = refuel_min
             continue
 
-        # Bounding box of the refuel zone, expanded by detour radius
-        lat_lo = min(la for _, la, _ in zone_pts) - lat_pad
-        lat_hi = max(la for _, la, _ in zone_pts) + lat_pad
-        lon_pad = _lon_pad(detour_mi, max(abs(lat_lo), abs(lat_hi)))
-        lon_lo = min(lo for _, _, lo in zone_pts) - lon_pad
-        lon_hi = max(lo for _, _, lo in zone_pts) + lon_pad
-        lo_i = bisect.bisect_left(station_lats, lat_lo)
-        hi_i = bisect.bisect_right(station_lats, lat_hi)
-        candidates = [s for s in stations_sorted[lo_i:hi_i] if lon_lo <= s['lon'] <= lon_hi]
-
-        best_station: dict | None = None
-        best_price = float('inf')
-        best_mile  = 0.0
-
-        for (cum, wp_lat, wp_lon) in zone_pts:
-            for st in candidates:
-                if st['price'] >= best_price:
-                    continue
-                if _haversine(wp_lat, wp_lon, st['lat'], st['lon']) <= detour_mi:
-                    best_station = st
-                    best_price   = st['price']
-                    best_mile    = cum
-
-        if best_station is None:
-            # No station in zone — advance window to avoid an infinite loop
-            last_stop_mile = refuel_min
-            continue
-
+        best_station, best_mile = best
+        best_price = best_station['price']
         miles_from_last = best_mile - last_stop_mile
         gallons = miles_from_last / mpg
         addr = ', '.join(filter(None, [

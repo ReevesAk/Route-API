@@ -105,6 +105,26 @@ class OptimizerBehaviourTests(TestCase):
         stops, _ = plan_stops(LONG_COORDS, stations=stations)
         self.assertEqual(stops[0]['price_per_gallon'], 3.40)
 
+    def test_falls_back_to_earlier_station_when_zone_is_empty(self):
+        # Nothing in the 350-500 mile zone, but a station at ~207 mi is reachable:
+        # stopping early beats running dry.
+        early = _make_station(lat=3.0, lon=0.05, price=3.60)
+        stops, _ = plan_stops(STRAIGHT_COORDS, stations=[early])
+        self.assertEqual(len(stops), 1)
+        self.assertAlmostEqual(stops[0]['miles_from_last_stop'], 207.3, delta=1)
+
+    def test_fallback_picks_cheapest_reachable_station(self):
+        a = _make_station(lat=2.0, lon=0.05, price=3.90, sid='a')
+        b = _make_station(lat=4.0, lon=0.05, price=3.20, sid='b')
+        stops, _ = plan_stops(STRAIGHT_COORDS, stations=[a, b])
+        self.assertEqual(stops[0]['price_per_gallon'], 3.20)
+
+    def test_station_at_last_stop_is_not_reused(self):
+        # A station sitting exactly at the start must not produce a 0-mile stop.
+        start = _make_station(lat=0.0, lon=0.0, price=1.00)
+        stops, _ = plan_stops(STRAIGHT_COORDS, stations=[start])
+        self.assertEqual(stops, [])
+
     def test_no_stations_anywhere_returns_no_stops(self):
         stops, total = plan_stops(LONG_COORDS, stations=[])
         self.assertEqual(stops, [])
